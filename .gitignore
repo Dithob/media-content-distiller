@@ -1,0 +1,20 @@
+# Local credentials and generated project artifacts
+.env
+.env.*
+!.env.example
+accounts.json
+accounts-tokens.json
+**/accounts.json
+**/accounts-tokens.json
+media-artifacts/
+*.log
+
+# Python and macOS artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+
+# Local test output
+.pytest_cache/
+.coverage

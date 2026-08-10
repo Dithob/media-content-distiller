@@ -1,0 +1,4 @@
+interface:
+  display_name: "音视频字幕与内容总结"
+  short_description: "先取可验证字幕，再由 Codex 总结、梳理与蒸馏"
+  default_prompt: "使用 $media-content-distiller 处理这个音视频：先获取并校验字幕，再按我的目标生成转录、快速总结、详细总结、结构梳理或学习文档；不要把 Token 写入 skill，也不要默认调用 BibiGPT 总结接口。"
