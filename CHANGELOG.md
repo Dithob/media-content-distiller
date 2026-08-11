@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add a complete English README at `README.en.md`.
+- Add `English | 中文` language-switch links for GitHub readers.
+
 ## 1.0.0 - 2026-08-10
 
 - 整理为可独立发布、可通过 `npx skills` 发现和安装的标准 skill 仓库。

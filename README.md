@@ -1,5 +1,7 @@
 # media-content-distiller
 
+[English](README.en.md) | 中文
+
 一个可独立安装的音视频字幕与内容蒸馏 skill：先从 Bilibili、YouTube、TikTok/Douyin、小红书、播客或公开媒体 URL 获取可验证字幕，再由 Codex 生成转录、快速总结、详细总结、结构梳理、学习文档、问答或多视频比较。
 
 > 核心边界：BibiGPT 主要作为字幕提供方；正常内容链路只调用 `getSubtitle`，不把 BibiGPT 的总结接口当作默认输出引擎。
@@ -164,7 +166,8 @@ media-content-distiller/
 ├── .env.example
 ├── LICENSE
 ├── CHANGELOG.md
-└── README.md
+├── README.md
+└── README.en.md
 ```
 
 ## 发布检查
