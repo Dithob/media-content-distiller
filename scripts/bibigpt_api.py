@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility entrypoint; use acquire_subtitle.py for new workflows."""
+"""Compatibility alias for the skill-owned Node CLI."""
 
 from acquire_subtitle import main
 

@@ -37,6 +37,11 @@ const version = spawnSync(BIN, ["--version"], { encoding: "utf8" });
 assert.equal(version.status, 0);
 assert.match(version.stdout.trim(), /^\d+\.\d+\.\d+$/);
 
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
+);
+assert.equal(packageJson.bin?.["media-content-distiller"], "./bin/media-content-distiller.mjs");
+
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "media-content-distiller-verify-"));
 try {
   const isolatedEnv = path.join(temporary, ".env");

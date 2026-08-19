@@ -1,4 +1,4 @@
 interface:
   display_name: "Media Content Distiller"
-  short_description: "Fetch subtitles, then distill media content with Codex"
-  default_prompt: "Use $media-content-distiller for this media task: fetch and validate subtitles first, then produce a transcript, quick or detailed summary, structured outline, or learning note with Codex. Never store Tokens in the skill or call BibiGPT summary endpoints by default."
+  short_description: "Fetch subtitles and distill media content with Codex"
+  default_prompt: "Use $media-content-distiller for this media task: for a one-off public URL, call the subtitle API directly; use the skill CLI for Token setup/probing, batch work, or standard sidecars, then produce the requested transcript, summary, outline, manual, or learning note with Codex. Never store Tokens in the skill or call BibiGPT summary endpoints."

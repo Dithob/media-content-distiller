@@ -2,17 +2,20 @@
 
 ## Unreleased
 
-- Make the skill-owned Node.js CLI the only normal subtitle acquisition path: public URLs
-  use the bundled BibiGPT API client with `/v1/me` followed by `/v1/getSubtitle`.
-- Remove the accidental dependency on external command/skill adapters. The CLI now owns
-  Token resolution, API requests, normalization, rendering, batch processing, and artifact layout.
-- Keep local media handling explicit and safe: the URL-only API rejects local files without
-  uploading them or making a network request.
-- Restore the Python entry point to API-only compatibility behavior with the same subtitle
-  format, credential lookup, redaction, and error semantics as the Node.js CLI.
-- Add offline Node regression coverage for API request order, summary-endpoint exclusion,
-  local-file safety, batch processing, artifact layout, Token redaction, and registry checks.
-- Keep the complete English README at `README.en.md` and reciprocal `English | 中文` links.
+- Make direct `curl` the recommended path for one-off URL tasks; keep the Node.js CLI for
+  reusable setup, full-registry probing, batch work, offline rendering, and artifact layout.
+- Keep Python files as thin compatibility wrappers instead of a second API client and artifact
+  pipeline.
+- Add `setup`, `import`, `add`, and `probe` full-registry Token probing through `/v1/me`,
+  persisting only non-sensitive authorization/quota snapshots.
+- Add purpose-aware filename suggestions for summaries, detailed summaries, structure notes,
+  operation manuals, learning notes, and transcripts.
+- Stop subtitle acquisition from creating a main-document placeholder. Keep timeline lookup,
+  evidence, coverage, and boundaries in source sidecars.
+- Reduce the core skill guidance and references while retaining bilingual README switching.
+- Remove duplicated workflow/reference files that repeated the same subtitle and output rules.
+- Add offline coverage for all-token probing, purpose-aware filenames, sidecar boundaries,
+  and Python-to-Node compatibility.
 
 ## 1.0.0 - 2026-08-10
 

@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
-"""Print normalized subtitle cues from a local BibiGPT/Bilibili JSON artifact."""
+"""Legacy Python wrapper for the skill-owned ``normalize`` command."""
 
 from __future__ import annotations
 
-import argparse
-import json
+import os
+import shutil
+import sys
 from pathlib import Path
 
-from render_transcript import normalize_subtitles, validate_subtitles
+
+ROOT = Path(__file__).resolve().parents[1]
+CLI = ROOT / "bin" / "media-content-distiller.mjs"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="标准化字幕 JSON")
-    parser.add_argument("--input", required=True, type=Path)
-    args = parser.parse_args()
-    with args.input.open("r", encoding="utf-8") as handle:
-        rows = normalize_subtitles(json.load(handle))
-    if not rows:
-        raise SystemExit("未找到可识别字幕")
-    validate_subtitles(rows)
-    print(json.dumps(rows, ensure_ascii=False, indent=2))
+    node = shutil.which("node")
+    if not node:
+        raise SystemExit(
+            "字幕标准化的 Python 兼容入口需要 Node.js 18+；"
+            "请直接使用 media-content-distiller normalize"
+        )
+    os.execv(node, [node, str(CLI), "--", "normalize", *sys.argv[1:]])
 
 
 if __name__ == "__main__":

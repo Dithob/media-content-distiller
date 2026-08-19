@@ -8,10 +8,13 @@ import { test } from "node:test";
 
 import {
   compactRows,
+  extractPlan,
   newRegistry,
   normalizeSubtitles,
   safeJson,
   saveRegistry,
+  selectRegistryAccount,
+  suggestDocumentNames,
   validateSubtitles,
 } from "../lib/core.mjs";
 import { runCli } from "../lib/cli.mjs";
@@ -111,6 +114,13 @@ test("normalizes supported subtitle shapes and keeps cue boundaries", () => {
   validateSubtitles(rows);
 });
 
+test("extracts plan from nested account responses", () => {
+  assert.equal(
+    extractPlan({ data: { result: { tier: "pro", remainingMinutes: 9 } } }),
+    "pro",
+  );
+});
+
 test("redacts credential-shaped values", () => {
   const text = JSON.stringify(
     safeJson({
@@ -141,6 +151,30 @@ test("registry is private and CLI list never prints a Token", async () => {
   }
 });
 
+test("cached probe failures are not selected for runtime", () => {
+  const registry = newRegistry(3);
+  registry.accounts[0].api_token = "unknown-token";
+  registry.accounts[0].probe_status = "unknown";
+  registry.accounts[1].api_token = "rate-limited-token";
+  registry.accounts[1].probe_status = "rate_limited";
+  registry.accounts[2].api_token = "usable-token";
+  registry.accounts[2].probe_status = "usable";
+  assert.equal(selectRegistryAccount(registry).token, "unknown-token");
+  registry.accounts[0].probe_status = "unavailable";
+  assert.equal(selectRegistryAccount(registry).token, "usable-token");
+});
+
+test("suggests purpose-aware main document names", () => {
+  assert.equal(
+    suggestDocumentNames({ title: "Figma 入门" }, { purpose: "整理为操作手册" }).recommended,
+    "Figma-入门操作手册.md",
+  );
+  assert.equal(
+    suggestDocumentNames({ title: "Figma 入门" }, { purpose: "总结笔记" }).recommended,
+    "Figma-入门摘要.md",
+  );
+});
+
 test("Node CLI init, setup, bind, and list keep registry credentials private", async () => {
   const directory = tempDirectory();
   try {
@@ -160,7 +194,7 @@ test("Node CLI init, setup, bind, and list keep registry credentials private", a
     const setup = spawnSync(
       BIN,
       ["setup", "--registry", registryPath, "--env-file", envPath,
-        "--token-stdin", "--acknowledge-plaintext-token-storage"],
+        "--token-stdin", "--acknowledge-plaintext-token-storage", "--skip-probe"],
       { input: token, encoding: "utf8" },
     );
     assert.equal(setup.status, 0, setup.stderr);
@@ -182,6 +216,100 @@ test("Node CLI init, setup, bind, and list keep registry credentials private", a
     assert.doesNotMatch(list.stdout, new RegExp(token));
     assert.doesNotMatch(list.stdout, /api_token/);
   } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("probe checks every configured Token and persists status/quota without leaking Tokens", async () => {
+  const directory = tempDirectory();
+  const previousFetch = globalThis.fetch;
+  const registryPath = path.join(directory, "accounts.json");
+  const envPath = path.join(directory, ".env");
+  const registry = newRegistry(3);
+  registry.accounts[0].api_token = "valid-token";
+  registry.accounts[1].api_token = "empty-quota-token";
+  registry.accounts[2].api_token = "invalid-token";
+  saveRegistry(registryPath, registry);
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    const token = options.headers.Authorization.replace(/^Bearer /, "");
+    requests.push(token);
+    if (token === "valid-token") {
+      return new Response(JSON.stringify({ data: { plan: "pro", remainingMinutes: 12 } }), { status: 200 });
+    }
+    if (token === "empty-quota-token") {
+      return new Response(JSON.stringify({ data: { plan: "free", remainingMinutes: 0 } }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ message: "invalid" }), { status: 401 });
+  };
+  try {
+    const result = await captureCli([
+      "probe",
+      "--registry",
+      registryPath,
+      "--base-url",
+      "https://api.example.invalid",
+      "--retries",
+      "0",
+    ]);
+    assert.equal(result.code, 0, result.stderr);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.checked, 3);
+    assert.equal(parsed.usableCount, 1);
+    assert.deepEqual(requests, ["valid-token", "empty-quota-token", "invalid-token"]);
+    assert.doesNotMatch(result.stdout, /valid-token|empty-quota-token|invalid-token/);
+    const saved = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+    assert.equal(saved.accounts[0].probe_status, "usable");
+    assert.equal(saved.accounts[0].remaining_minutes, 12);
+    assert.equal(saved.accounts[1].probe_status, "quota_exhausted");
+    assert.equal(saved.accounts[2].probe_status, "invalid");
+  } finally {
+    globalThis.fetch = previousFetch;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("setup and import probe the entire registry, not only newly supplied Tokens", async () => {
+  const directory = tempDirectory();
+  const previousFetch = globalThis.fetch;
+  const registryPath = path.join(directory, "accounts.json");
+  const envPath = path.join(directory, ".env");
+  const tokensPath = path.join(directory, "tokens.txt");
+  const registry = newRegistry(2);
+  registry.accounts[0].api_token = "existing-token";
+  saveRegistry(registryPath, registry);
+  fs.writeFileSync(tokensPath, "new-token\n", "utf8");
+  const requested = [];
+  globalThis.fetch = async (_url, options) => {
+    const token = options.headers.Authorization.replace(/^Bearer /, "");
+    requested.push(token);
+    return new Response(
+      JSON.stringify({ plan: token === "existing-token" ? "legacy" : "pro", remainingMinutes: 8 }),
+      { status: 200 },
+    );
+  };
+  try {
+    const result = await captureCli([
+      "import",
+      "--registry",
+      registryPath,
+      "--env-file",
+      envPath,
+      "--input",
+      tokensPath,
+      "--acknowledge-plaintext-token-storage",
+      "--base-url",
+      "https://api.example.invalid",
+      "--retries",
+      "0",
+    ]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(requested, ["existing-token", "new-token"]);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.probes.length, 2);
+    assert.equal(parsed.usableCount, 2);
+  } finally {
+    globalThis.fetch = previousFetch;
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -310,6 +438,7 @@ test("URL subtitle path uses the skill-owned API client and writes artifacts", a
     assert.equal(parsed.cueCount, 2);
     assert.equal(parsed.response.transport, "api");
     assert.equal(parsed.response.subtitleSource, "BibiGPT official /v1/getSubtitle");
+    assert.equal(parsed.suggestedMainFiles.recommended, "Mock-media摘要.md");
     assert.equal(fs.existsSync(parsed.artifacts.rawSubtitle), true);
     assert.equal(fs.existsSync(parsed.transcript), true);
     const raw = fs.readFileSync(parsed.artifacts.rawSubtitle, "utf8");
@@ -321,6 +450,7 @@ test("URL subtitle path uses the skill-owned API client and writes artifacts", a
     assert.ok(api.requests.every((item) => item.authorization === "Bearer fixture-token"));
     assert.ok(api.requests.every((item) => item.clientType === "media-content-distiller"));
     assert.ok(api.requests.every((item) => item.userAgent.startsWith("media-content-distiller-cli/")));
+    assert.match(fs.readFileSync(parsed.artifacts.folderReadme, "utf8"), /不要塞进主稿正文/);
   } finally {
     api.restore();
     if (previousToken === undefined) delete process.env.BIBI_API_TOKEN;
