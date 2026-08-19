@@ -162,7 +162,7 @@ def request_json(
         headers={
             "Accept": "application/json",
             "Authorization": f"Bearer {token}",
-            "x-client-type": "bibi-cli",
+            "x-client-type": "media-content-distiller",
             "User-Agent": "media-content-distiller/2.0",
         },
         method=method,
@@ -218,7 +218,7 @@ def response_metadata(response: Any, *, input_value: str, transport: str) -> dic
         "url": redact_string(str(source_url)) if source_url else input_value,
         "sourceUrl": redact_string(str(response.get("sourceUrl")))
         if isinstance(response, dict) and response.get("sourceUrl")
-        else input_value,
+        else redact_string(str(input_value)),
         "title": detail.get("title"),
         "author": detail.get("author"),
         "duration": detail.get("duration"),
@@ -586,7 +586,7 @@ def preflight_account(
 def get_subtitle(args: argparse.Namespace, token: str) -> tuple[int, Any]:
     if not looks_like_url(args.input):
         raise SystemExit(
-            "API 字幕路径只接受 URL；本地文件请安装 bibi CLI，或先提供公开可访问的媒体 URL"
+            "BibiGPT API 字幕获取只接受公开 URL；不会上传本地媒体文件，请提供公开可访问的媒体 URL"
         )
     return request_json(
         args.base_url,
@@ -602,6 +602,13 @@ def get_subtitle(args: argparse.Namespace, token: str) -> tuple[int, Any]:
         timeout=args.timeout,
         retries=args.retries,
     )
+
+
+def require_public_url(input_value: str) -> None:
+    if not looks_like_url(input_value):
+        raise SystemExit(
+            "BibiGPT API 字幕获取只接受公开 URL；不会上传本地媒体文件，请提供公开可访问的媒体 URL"
+        )
 
 
 def write_response_artifacts(
@@ -1032,6 +1039,9 @@ def command_batch(
             seen.add(key)
             unique.append(record)
 
+    for record in unique:
+        require_public_url(record["input"])
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = args.manifest or args.output_dir / "batch-manifest.json"
     manifest = load_manifest(manifest_path)
@@ -1124,7 +1134,7 @@ def add_common(parser: argparse.ArgumentParser) -> None:
 
 def add_media_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--input", dest="input", help="媒体 URL；API 模式也接受公开媒体 URL")
+    group.add_argument("--input", dest="input", help="公开媒体 URL；本地文件会在网络请求前安全失败")
     group.add_argument("--url", dest="input", help="兼容旧命令的 URL 参数")
     parser.add_argument("--output-dir", type=Path, default=Path("./media-artifacts"))
     parser.add_argument("--audio-language")
@@ -1141,7 +1151,7 @@ def add_media_args(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="只调用 BibiGPT getSubtitle 获取字幕；总结由 Codex 在字幕之后完成"
+        description="使用本 skill 自有 Node/Python API 客户端调用 BibiGPT getSubtitle；总结由 Codex 在字幕之后完成"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -1187,6 +1197,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     try:
+        if args.command in {"subtitle", "summary", "hybrid"}:
+            require_public_url(args.input)
+        elif args.command == "batch":
+            for record in load_batch_input(args.input_file):
+                require_public_url(record["input"])
         token, account_id, registry_path = resolve_token(args)
         args.handler(args, token, account_id, registry_path)
     except ApiError as error:

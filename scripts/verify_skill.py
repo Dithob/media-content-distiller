@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -222,6 +223,13 @@ def main() -> int:
         "scripts/render_transcript.py",
         "scripts/normalize_subtitle.py",
         "scripts/token_registry.py",
+        "package.json",
+        "bin/media-content-distiller",
+        "bin/media-content-distiller.mjs",
+        "lib/core.mjs",
+        "lib/cli.mjs",
+        "scripts/verify_cli.mjs",
+        "tests/cli.test.mjs",
     ):
         require_file(relative)
 
@@ -237,6 +245,18 @@ def main() -> int:
     )
     for script in ("acquire_subtitle.py", "render_transcript.py", "normalize_subtitle.py", "token_registry.py"):
         run(sys.executable, f"scripts/{script}", "--help")
+
+    node = shutil.which("node")
+    if not node:
+        fail("Node.js >= 18 is required for the skill-owned CLI")
+    for relative in ("bin/media-content-distiller.mjs", "lib/core.mjs", "lib/cli.mjs", "scripts/verify_cli.mjs", "tests/cli.test.mjs"):
+        run(node, "--check", relative)
+    source_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (ROOT / "lib").glob("*.mjs")
+    )
+    if re.search(r"bibi\s+summarize|spawn(?:Sync)?\(\s*[\"']bibi|BibiCli", source_text, re.I):
+        fail("Node CLI contains an external bibi adapter")
 
     clean_env = dict(os.environ)
     for key in tuple(clean_env):

@@ -1,0 +1,18 @@
+{
+  "name": "media-content-distiller",
+  "version": "1.2.0",
+  "description": "Subtitle-first media content distillation CLI for Codex",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "media-content-distiller": "./bin/media-content-distiller.mjs"
+  },
+  "scripts": {
+    "cli": "node bin/media-content-distiller.mjs",
+    "test:cli": "node --test tests/cli.test.mjs",
+    "verify:cli": "node scripts/verify_cli.mjs"
+  }
+}

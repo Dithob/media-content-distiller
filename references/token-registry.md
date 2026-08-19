@@ -34,7 +34,7 @@ BIBIGPT_TOKEN_REGISTRY=./bilibili-video-ai-doc-safe-sim/accounts.json
 
 ## 凭证发现顺序
 
-`acquire_subtitle.py` 和 `token_registry.py check` 按以下兜底链查找：
+`media-content-distiller` CLI、`acquire_subtitle.py` 和 `token_registry.py check` 按以下兜底链查找：
 
 1. 显式 `--registry` / `--token-env NAME`；
 2. 进程环境变量 `BIBI_API_TOKEN`；
@@ -42,7 +42,7 @@ BIBIGPT_TOKEN_REGISTRY=./bilibili-video-ai-doc-safe-sim/accounts.json
 4. 项目 `.env` 或进程环境变量的 `BIBIGPT_TOKEN_REGISTRY`；
 5. 项目根 `accounts.json`；
 6. 旧名 `accounts-tokens.json`；
-7. Ego Lite：仅用户明确要求时使用，默认不启动。
+7. 只有用户明确要求时才进入网页兜底流程，默认不启动。
 
 显式 `--registry` 优先级最高；默认发现到 `accounts.json` 后也可用 `--registry ./accounts.json` 固定来源。
 
@@ -54,10 +54,15 @@ BIBIGPT_TOKEN_REGISTRY=./bilibili-video-ai-doc-safe-sim/accounts.json
 - `.env`（单 key）：`BIBI_API_TOKEN=<你的Token>`；
 - 批量导入（多 key）：按换行分隔文本文件每行一个 key，或直接按账号格式填写 `accounts.json`。
 
+本 skill 的 Node.js CLI 和 Python 兼容入口都使用上述 BibiGPT API Token。API
+字幕获取只接受公开 URL；本地文件不会因为找到 API Token 就被错误上传，也不会被
+自动转换或上传。需要处理本地媒体时，请先由用户提供公开可访问的媒体 URL，或仅对
+已有的本地字幕 JSON 使用 `normalize`/`render`。
+
 ## 批量导入
 
 ```bash
-python3 scripts/token_registry.py import \
+media-content-distiller import \
   --registry ./accounts.json \
   --input ./tokens.txt \
   --acknowledge-plaintext-token-storage
@@ -75,7 +80,7 @@ python3 scripts/token_registry.py import \
 脚本/交互式环境可直接使用：
 
 ```bash
-python3 scripts/token_registry.py setup \
+media-content-distiller setup \
   --registry ./accounts.json \
   --env-file ./.env \
   --slots 1 \
@@ -89,7 +94,7 @@ python3 scripts/token_registry.py setup \
 `.env` 指向不存在的文件时：
 
 ```bash
-python3 scripts/token_registry.py repair \
+media-content-distiller repair \
   --registry ./accounts.json \
   --env-file ./.env \
   --acknowledge-plaintext-token-storage
@@ -98,7 +103,7 @@ python3 scripts/token_registry.py repair \
 已有账号文件时只绑定当前项目：
 
 ```bash
-python3 scripts/token_registry.py bind \
+media-content-distiller bind \
   --registry ./accounts.json \
   --env-file ./.env
 ```
@@ -106,7 +111,7 @@ python3 scripts/token_registry.py bind \
 ## 可用性检查
 
 ```bash
-python3 scripts/token_registry.py check
+media-content-distiller check
 ```
 
 只报告 key 来源、账号槽位、是否有 Token 和缓存余额，不输出 Token，也不发起 `/v1/me` 网络请求；字幕任务自身会在内容请求前做 `/v1/me` 预检。
@@ -116,7 +121,7 @@ python3 scripts/token_registry.py check
 新增或替换单个槽位：
 
 ```bash
-python3 scripts/token_registry.py add \
+media-content-distiller add \
   --registry ./accounts.json \
   --account-id account-01 \
   --acknowledge-plaintext-token-storage
@@ -125,7 +130,7 @@ python3 scripts/token_registry.py add \
 Token 通过隐藏提示输入；测试或非交互环境可加 `--token-stdin`。`list` 只输出槽位是否有 Token 和余额，不输出 Token：
 
 ```bash
-python3 scripts/token_registry.py list --registry ./accounts.json
+media-content-distiller list --registry ./accounts.json
 ```
 
 ## 选择规则
@@ -135,6 +140,18 @@ python3 scripts/token_registry.py list --registry ./accounts.json
 - 不做轮询，不因 401、402/403 或 429 自动切换账号；
 - 每次使用账号文件时先 `/v1/me`，成功后回写非敏感余额；
 - `disable` 会清空槽位并把余额设为 0。
+
+Node.js CLI 和 Python 兼容入口均使用 API registry。公开 URL 任务先调用
+`/v1/me`，再调用 `/v1/getSubtitle`；本地媒体路径在凭证解析和网络请求之前安全失败。
+
+上述 Node.js 命令是新用户的首选初始化和操作方式；Python 版本仅用于兼容已有脚本：
+
+```bash
+python3 scripts/token_registry.py setup ...
+python3 scripts/token_registry.py repair ...
+python3 scripts/token_registry.py bind ...
+python3 scripts/token_registry.py import ...
+```
 
 ## 安全边界
 

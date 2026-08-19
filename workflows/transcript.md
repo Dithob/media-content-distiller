@@ -9,13 +9,19 @@
 ## Steps
 
 1. 先确认 URL 或本地文件；已有 raw JSON 时直接复用，不重新请求。
-2. 优先运行：
+2. 优先运行本 skill 自带的 Node.js CLI。公开 URL 先调用 `/v1/me`，再调用
+   `/v1/getSubtitle`；CLI 不调用 BibiGPT 总结接口，也不依赖 Python 或其他 skill。
 
    ```bash
-   bibi summarize "<INPUT>" --subtitle --json
+   media-content-distiller subtitle \
+     --url "<PUBLIC-URL>" \
+     --output-dir ./media-artifacts
    ```
 
-3. 没有 CLI 时运行：
+3. 本地媒体路径不能通过当前 API 直接上传；收到本地文件时安全停止，提示用户提供
+   公开可访问的媒体 URL。已有本地字幕 JSON 则直接进入 `normalize`/`render`。
+
+4. 旧 Python 兼容入口仍可运行：
 
    ```bash
    python3 scripts/acquire_subtitle.py subtitle \
@@ -23,10 +29,10 @@
      --output-dir ./media-artifacts
    ```
 
-4. 校验字幕结构和时间轴；记录 cue 数、首尾时间、视频时长和覆盖判断。
-5. 默认每 10 条 cue 合并为一个时间段；cue 之间直接换行，不插入伪文本。
-6. 用户明确要求逐句时使用 `--sentences-per-group 1`。
-7. 用户需要其他风格时传入 `--sentence-separator '|'`、`--sentence-separator space` 或自定义字符串。
+5. 校验字幕结构和时间轴；记录 cue 数、首尾时间、视频时长和覆盖判断。
+6. 默认每 10 条 cue 合并为一个时间段；cue 之间直接换行，不插入伪文本。
+7. 用户明确要求逐句时使用 `--sentences-per-group 1`。
+8. 用户需要其他风格时传入 `--sentence-separator '|'`、`--sentence-separator space` 或自定义字符串。
 
 ## Output
 

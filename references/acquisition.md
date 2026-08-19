@@ -2,19 +2,29 @@
 
 > 本文件中的 `scripts/...` 命令默认从 skill 仓库根目录执行；安装后请将 `scripts/` 替换为实际安装目录，或先 `cd` 到 skill 目录。
 
-## Preferred path
+## Node.js CLI path
 
-有 `bibi` CLI 时：
+本 skill 自带的 Node.js CLI 是正常入口。它不检测、不调用其他 skill 或其他命令，
+直接使用 Node.js 内置 `fetch` 调用 BibiGPT API。公开 URL 按以下顺序执行：
+
+1. 解析当前项目的 API Token；
+2. `GET /v1/me` 做授权和余额预检；
+3. `GET /v1/getSubtitle` 获取字幕；
+4. 标准化字幕、校验时间轴并写入 `media-artifacts/`。
 
 ```bash
-bibi summarize "<URL-or-local-file>" --subtitle --json
+media-content-distiller subtitle \
+  --url "https://example.com/video" \
+  --output-dir ./media-artifacts
 ```
 
-它是 BibiGPT 的官方 CLI 封装；`--subtitle` 是本 skill 的唯一内容获取意图。
+CLI 只使用 BibiGPT 的字幕接口，不调用 `/v1/summarize`、
+`/v1/summarizeWithConfig` 或 `/v1/summarizeByChapter`。总结、章节结构和学习文档由
+Codex 在字幕产物上完成。
 
 ## API path
 
-没有 CLI 或需要显式 API 审计时，按以下顺序从当前项目发现凭证：
+Node.js CLI 和旧 Python 入口使用相同的 BibiGPT API 逻辑。按以下顺序从当前项目发现凭证：
 
 1. 显式 `--registry`；
 2. 显式 `--token-env NAME`；
@@ -25,10 +35,21 @@ bibi summarize "<URL-or-local-file>" --subtitle --json
 7. 兼容旧名 `accounts-tokens.json`。
 
 ```bash
+media-content-distiller subtitle \
+  --input "https://example.com/video" \
+  --output-dir ./media-artifacts
+```
+
+旧 Python 兼容入口：
+
+```bash
 python3 scripts/acquire_subtitle.py subtitle \
   --input "https://example.com/video" \
   --output-dir ./media-artifacts
 ```
+
+API 字幕获取只对公开 URL 生效。本地媒体文件不会被自动上传，也不会被当作 URL
+发送给 `/v1/getSubtitle`；传入本地路径时应明确提示用户改用公开可访问的媒体 URL。
 
 已有账号文件也可以显式指定：
 
@@ -49,10 +70,10 @@ GET https://api.bibigpt.co/api/v1/getSubtitle
 
 ```text
 Authorization: Bearer <user-authorized-token>
-x-client-type: bibi-cli
+x-client-type: media-content-distiller
 ```
 
-`remainingMinutes <= 0`、401、402/403、429 等情况会停止并报告，不自动切换账号或轮换 Token。Ego Lite 仅在用户明确要求网页验证，或 API/CLI 均不可用且用户允许兜底时使用。
+`remainingMinutes <= 0`、401、402/403、429 等情况会停止并报告，不自动切换账号或轮换 Token。Ego Lite 仅在用户明确要求网页验证，或 API 不可用且用户允许兜底时使用。
 
 ## Output layout
 
@@ -81,7 +102,7 @@ media-artifacts/
 - 批量导入：
 
   ```bash
-  python3 scripts/token_registry.py import \
+  media-content-distiller import \
     --registry ./accounts.json \
     --input ./tokens.txt \
     --acknowledge-plaintext-token-storage
@@ -90,7 +111,7 @@ media-artifacts/
 没有 TTY 的 CI/批处理环境可使用：
 
 ```bash
-python3 scripts/token_registry.py repair \
+media-content-distiller repair \
   --registry ./accounts.json \
   --env-file ./.env \
   --acknowledge-plaintext-token-storage
@@ -99,12 +120,14 @@ python3 scripts/token_registry.py repair \
 已有账号文件只绑定当前项目：
 
 ```bash
-python3 scripts/token_registry.py bind \
+media-content-distiller bind \
   --registry ./accounts.json \
   --env-file ./.env
 ```
 
 账号文件和 `.env` 会尽力收紧为 `0600`；Token 不写入 skill、日志、产物或文档。
+旧 Python registry 入口仍保留给已有自动化：
+`python3 scripts/token_registry.py setup|repair|bind|import ...`。
 
 ## Selection and safety
 
@@ -117,7 +140,7 @@ python3 scripts/token_registry.py bind \
 ## Input notes
 
 - URL：Bilibili、YouTube、TikTok/Douyin、小红书、播客和公开媒体 URL；
-- 本地文件：优先走 `bibi` CLI；API 模式不能直接上传本地文件；
+- 本地文件：API 模式不直接上传；明确提示用户提供公开可访问的媒体 URL；
 - 需要 `audioLanguage`、speaker identification、`transcribeProvider` 或 `whisperPrompt` 时，只在用户明确指定后传递。
 
 ## Response shapes

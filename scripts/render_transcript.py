@@ -274,7 +274,7 @@ def render_transcript(
         f"- 平台/服务：{meta.get('service', meta.get('platform', '未提供'))}",
         f"- 作者：{meta.get('author', '未提供')}",
         f"- 时长：{fmt_time(duration)}",
-        f"- 字幕来源：{meta.get('subtitleSource', 'BibiGPT getSubtitle / bibi --subtitle')}",
+        f"- 字幕来源：{meta.get('subtitleSource', 'BibiGPT getSubtitle')}",
         f"- 获取方式：{meta.get('transport', meta.get('apiMode', '未提供'))}",
         f"- 原始字幕 cue：{len(rows)} 条",
         f"- 合并后时间段：{len(groups)} 段（每段最多 {sentences_per_group} 条）",

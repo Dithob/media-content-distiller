@@ -5,6 +5,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.parse
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +84,82 @@ class AcquisitionTests(unittest.TestCase):
         text = json.dumps(value, ensure_ascii=False)
         self.assertNotIn("secret-value", text)
         self.assertIn("[REDACTED]", text)
+
+    def test_api_entrypoint_rejects_local_media_before_network(self):
+        with self.assertRaises(SystemExit):
+            ACQUIRE.require_public_url("/tmp/example.mp4")
+
+    def test_python_api_client_uses_skill_owned_subtitle_headers_and_order(self):
+        requests = []
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self.status = 200
+                self._payload = json.dumps(payload).encode("utf-8")
+
+            def read(self):
+                return self._payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        def fake_urlopen(request, timeout):
+            parsed = urllib.parse.urlparse(request.full_url)
+            requests.append(
+                {
+                    "path": parsed.path,
+                    "url": urllib.parse.parse_qs(parsed.query).get("url", [None])[0],
+                    "client_type": request.headers.get("X-client-type"),
+                    "authorization": request.headers.get("Authorization"),
+                    "timeout": timeout,
+                }
+            )
+            if parsed.path.endswith("/v1/me"):
+                return FakeResponse({"plan": "fixture", "remainingMinutes": 42})
+            return FakeResponse(
+                {
+                    "success": True,
+                    "detail": {
+                        "title": "Fixture",
+                        "url": "https://example.invalid/video",
+                        "subtitlesArray": [
+                            {"startTime": 0, "endTime": 1, "text": "hello"}
+                        ],
+                    },
+                }
+            )
+
+        args = type(
+            "Args",
+            (),
+            {
+                "base_url": "https://api.example.invalid",
+                "timeout": 3,
+                "retries": 0,
+                "input": "https://example.invalid/video",
+                "audio_language": None,
+                "enabled_speaker": False,
+                "transcribe_provider": None,
+                "whisper_prompt": None,
+            },
+        )()
+        with patch.object(ACQUIRE.urllib.request, "urlopen", fake_urlopen):
+            ACQUIRE.preflight_account(args, "fixture-token", None, None)
+            status, response = ACQUIRE.get_subtitle(args, "fixture-token")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(response["detail"]["title"], "Fixture")
+        self.assertEqual([item["path"] for item in requests], ["/v1/me", "/v1/getSubtitle"])
+        self.assertTrue(
+            all(item["client_type"] == "media-content-distiller" for item in requests)
+        )
+        self.assertTrue(
+            all(item["authorization"] == "Bearer fixture-token" for item in requests)
+        )
+        self.assertEqual(requests[-1]["url"], "https://example.invalid/video")
 
 
 class RegistryTests(unittest.TestCase):
